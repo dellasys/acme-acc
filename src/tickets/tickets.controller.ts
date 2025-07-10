@@ -7,6 +7,7 @@ import {
   TicketType,
 } from '../../db/models/Ticket';
 import { User, UserRole } from '../../db/models/User';
+import { selectSingleDirector, selectAssigneeForRegistrationAddressChange, resolveAllOtherActiveTickets } from './ticket.helper';
 
 interface newTicketDto {
   type: TicketType;
@@ -27,43 +28,6 @@ export class TicketsController {
   @Get()
   async findAll() {
     return await Ticket.findAll({ include: [Company, User] });
-  }
-
-  /**
-   * Selects the assignee for a registrationAddressChange ticket.
-   * Priority: Corporate Secretary (only one allowed), then Director (only one allowed).
-   * Throws if none or multiple found.
-   */
-  private async selectAssigneeForRegistrationAddressChange(companyId: number): Promise<{ assignee: User, role: UserRole }> {
-    // Try to find a single corporate secretary
-    const secretaries = await User.findAll({
-      where: { companyId, role: UserRole.corporateSecretary },
-      order: [['createdAt', 'DESC']],
-    });
-    if (secretaries.length === 1) {
-      return { assignee: secretaries[0], role: UserRole.corporateSecretary };
-    }
-    if (secretaries.length > 1) {
-      throw new ConflictException(
-        `Multiple users with role corporateSecretary. Cannot create a ticket`,
-      );
-    }
-    // Fallback to director
-    const directors = await User.findAll({
-      where: { companyId, role: UserRole.director },
-      order: [['createdAt', 'DESC']],
-    });
-    if (directors.length === 1) {
-      return { assignee: directors[0], role: UserRole.director };
-    }
-    if (directors.length > 1) {
-      throw new ConflictException(
-        `Multiple users with role director. Cannot create a ticket`,
-      );
-    }
-    throw new ConflictException(
-      `Cannot find user with role corporateSecretary or director to create a ticket`,
-    );
   }
 
   @Post()
@@ -100,8 +64,14 @@ export class TicketsController {
     } else if (type === TicketType.registrationAddressChange) {
       category = TicketCategory.corporate;
       // Use helper for secretary/director logic
-      const result = await this.selectAssigneeForRegistrationAddressChange(companyId);
+      const result = await selectAssigneeForRegistrationAddressChange(companyId);
       assignee = result.assignee;
+    } else if (type === TicketType.strikeOff) {
+      category = TicketCategory.management;
+      // Use helper for single director selection
+      assignee = await selectSingleDirector(companyId);
+      // Resolve all other active tickets for this company
+      await resolveAllOtherActiveTickets(companyId);
     } else {
       // Default/future ticket types
       throw new ConflictException('Unsupported ticket type');

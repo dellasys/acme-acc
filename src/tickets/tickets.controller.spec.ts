@@ -205,5 +205,104 @@ describe('TicketsController', () => {
         );
       });
     });
+
+    describe('strikeOff', () => {
+      it('creates strikeOff ticket with a single director', async () => {
+        const company = await Company.create({ name: 'test' });
+        const director = await User.create({
+          name: 'Director User',
+          role: UserRole.director,
+          companyId: company.id,
+        });
+
+        const ticket = await controller.create({
+          companyId: company.id,
+          type: TicketType.strikeOff,
+        });
+
+        expect(ticket.category).toBe(TicketCategory.management);
+        expect(ticket.assigneeId).toBe(director.id);
+        expect(ticket.status).toBe(TicketStatus.open);
+        expect(ticket.type).toBe(TicketType.strikeOff);
+      });
+
+      it('throws if multiple directors', async () => {
+        const company = await Company.create({ name: 'test' });
+        await User.create({
+          name: 'Director 1',
+          role: UserRole.director,
+          companyId: company.id,
+        });
+        await User.create({
+          name: 'Director 2',
+          role: UserRole.director,
+          companyId: company.id,
+        });
+
+        await expect(
+          controller.create({
+            companyId: company.id,
+            type: TicketType.strikeOff,
+          })
+        ).rejects.toEqual(
+          new ConflictException(
+            `Multiple users with role director. Cannot create a strikeOff ticket`,
+          ),
+        );
+      });
+
+      it('throws if no director', async () => {
+        const company = await Company.create({ name: 'test' });
+
+        await expect(
+          controller.create({
+            companyId: company.id,
+            type: TicketType.strikeOff,
+          })
+        ).rejects.toEqual(
+          new ConflictException(
+            `Cannot find user with role director to create a strikeOff ticket`,
+          ),
+        );
+      });
+
+      it('resolves all other active tickets when strikeOff is created', async () => {
+        const company = await Company.create({ name: 'test' });
+        const director = await User.create({
+          name: 'Director User',
+          role: UserRole.director,
+          companyId: company.id,
+        });
+        // Create other open tickets
+        const accountant = await User.create({
+          name: 'Accountant',
+          role: UserRole.accountant,
+          companyId: company.id,
+        });
+        const t1 = await controller.create({
+          companyId: company.id,
+          type: TicketType.managementReport,
+        });
+        const t2 = await controller.create({
+          companyId: company.id,
+          type: TicketType.managementReport,
+        });
+        // Create strikeOff ticket
+        const strikeOffTicket = await controller.create({
+          companyId: company.id,
+          type: TicketType.strikeOff,
+        });
+        // Fetch all tickets for this company
+        const allTickets = await (await controller.findAll()).filter((t: any) => t.companyId === company.id);
+        // All tickets except strikeOff should be resolved
+        for (const ticket of allTickets) {
+          if (ticket.type === TicketType.strikeOff) {
+            expect(ticket.status).toBe(TicketStatus.open);
+          } else {
+            expect(ticket.status).toBe(TicketStatus.resolved);
+          }
+        }
+      });
+    });
   });
 });
