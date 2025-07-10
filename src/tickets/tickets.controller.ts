@@ -33,6 +33,17 @@ export class TicketsController {
   async create(@Body() newTicketDto: newTicketDto) {
     const { type, companyId } = newTicketDto;
 
+    if (type === TicketType.registrationAddressChange) {
+      const existing = await Ticket.findOne({
+        where: { companyId, type: TicketType.registrationAddressChange },
+      });
+      if (existing) {
+        throw new ConflictException(
+          `A registrationAddressChange ticket already exists for this company.`
+        );
+      }
+    }
+
     const category =
       type === TicketType.managementReport
         ? TicketCategory.accounting
