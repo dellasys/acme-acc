@@ -6,11 +6,6 @@ import { Ticket } from '../../db/models/Ticket';
 import { User } from '../../db/models/User';
 import { DbModule } from '../db.module';
 
-beforeEach(async () => {
-  jest.restoreAllMocks();
-  await cleanTables();
-});
-
 export async function cleanTables() {
   await Test.createTestingModule({
     imports: [DbModule],

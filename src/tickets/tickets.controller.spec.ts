@@ -9,11 +9,13 @@ import {
 import { User, UserRole } from '../../db/models/User';
 import { DbModule } from '../db.module';
 import { TicketsController } from './tickets.controller';
+import { cleanTables } from '../tests/setupJest';
 
 describe('TicketsController', () => {
   let controller: TicketsController;
 
   beforeEach(async () => {
+    await cleanTables();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TicketsController],
       imports: [DbModule],
