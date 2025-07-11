@@ -17,9 +17,20 @@ export class ReportsController {
   @Post()
   @HttpCode(201)
   generate() {
-    this.reportsService.accounts();
-    this.reportsService.yearly();
-    this.reportsService.fs();
-    return { message: 'finished' };
+    const start = Date.now();
+    setImmediate(async () => {
+      try {
+        await Promise.all([
+          this.reportsService.accounts(),
+          this.reportsService.yearly(),
+          this.reportsService.fs()
+        ]);
+        const duration = Date.now() - start;
+        console.log(`Report generation finished in ${duration}ms`);
+      } catch (error) {
+        console.error('Report generation failed:', error);
+      }
+    });
+    return { message: 'processing started' };
   }
 }
